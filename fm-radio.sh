@@ -19,13 +19,9 @@ FM_FREQ="${FM_FREQ:-107.9}"
 PS_NAME="${PS_NAME:-PIRADIO}"
 RT_TEXT="${RT_TEXT:-Pi Radio}"
 
-echo "Testing stream connection..."
-if ! curl -s --head --max-time 10 "$STREAM_URL" | head -n 1 | grep -q "200\|301\|302"; then
-    echo "Error: Cannot connect to stream URL: $STREAM_URL"
-    exit 1
-fi
-echo "Stream OK, starting broadcast on $FM_FREQ MHz..."
+echo "Starting broadcast on $FM_FREQ MHz..."
+echo "Stream: $STREAM_URL"
 
-curl -s "$STREAM_URL" | \
+curl -sL "$STREAM_URL" | \
 sox -t mp3 - -t wav -r 44100 -c 1 - | \
 /usr/local/bin/pi_fm_rds -freq "$FM_FREQ" -ps "$PS_NAME" -rt "$RT_TEXT" -audio -
