@@ -38,6 +38,14 @@ if [ ! -d "/tmp/PiFmRds" ]; then
 fi
 cd /tmp/PiFmRds/src
 make
+
+FM_WAS_RUNNING=false
+if systemctl is-active --quiet fm-radio 2>/dev/null; then
+    FM_WAS_RUNNING=true
+    echo "Stopping fm-radio service to update binary..."
+    systemctl stop fm-radio
+fi
+
 cp pi_fm_rds /usr/local/bin/
 cd -
 
@@ -74,6 +82,12 @@ systemctl daemon-reload
 if [ "$WEBUI_WAS_RUNNING" = true ] || [ "$ENABLE_WEBUI" = true ]; then
     systemctl enable --now fm-radio-webui
     echo "Web UI enabled and started"
+fi
+
+# Restart fm-radio if it was running before upgrade
+if [ "$FM_WAS_RUNNING" = true ]; then
+    echo "Restarting fm-radio service..."
+    systemctl start fm-radio
 fi
 
 echo
