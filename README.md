@@ -46,6 +46,32 @@ sudo systemctl status fm-radio
 sudo journalctl -u fm-radio -f
 ```
 
+## Web UI (Optional)
+
+A simple web interface is included but disabled by default.
+
+Enable during installation:
+
+```bash
+sudo ./install.sh --webui
+```
+
+Or enable after installation:
+
+```bash
+sudo systemctl enable --now fm-radio-webui
+```
+
+Then visit `http://<pi-ip>:8080` to:
+- Change stream URL, FM frequency, station name, and radio text
+- Start, stop, or restart the radio service
+
+To disable the web UI:
+
+```bash
+sudo systemctl disable --now fm-radio-webui
+```
+
 ## Legal Notice
 
 FM transmission is regulated in most countries. Ensure you comply with local radio transmission laws.

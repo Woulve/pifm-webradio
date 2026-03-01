@@ -10,19 +10,23 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-echo "[1/4] Stopping and disabling service..."
+echo "[1/5] Stopping and disabling services..."
 systemctl stop fm-radio.service 2>/dev/null || true
 systemctl disable fm-radio.service 2>/dev/null || true
+systemctl stop fm-radio-webui.service 2>/dev/null || true
+systemctl disable fm-radio-webui.service 2>/dev/null || true
 
-echo "[2/4] Removing service file..."
+echo "[2/5] Removing service files..."
 rm -f /etc/systemd/system/fm-radio.service
+rm -f /etc/systemd/system/fm-radio-webui.service
 systemctl daemon-reload
 
-echo "[3/4] Removing installed files..."
+echo "[3/5] Removing installed files..."
 rm -f /usr/local/bin/fm-radio.sh
+rm -f /usr/local/bin/fm-radio-webui.py
 rm -f /usr/local/bin/pi_fm_rds
 
-echo "[4/4] Configuration..."
+echo "[4/5] Configuration..."
 if [ -d /etc/fm-radio ]; then
     read -p "Remove configuration at /etc/fm-radio? (y/N) " -n 1 -r
     echo
@@ -34,7 +38,7 @@ if [ -d /etc/fm-radio ]; then
     fi
 fi
 
-echo
+echo "[5/5] Dependencies..."
 read -p "Remove dependencies (sox, libsox-fmt-mp3)? (y/N) " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then

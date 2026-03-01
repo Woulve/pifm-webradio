@@ -1,0 +1,12 @@
+[Unit]
+Description=Pi FM Radio Web UI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/fm-radio-webui.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
