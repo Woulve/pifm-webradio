@@ -1,0 +1,14 @@
+# FM Radio Configuration
+# Copy this file to 'config' and customize your settings
+
+# Web radio stream URL (required)
+STREAM_URL="https://radio/radiostream"
+
+# FM frequency to broadcast on (87.5 - 108.0 MHz)
+FM_FREQ="107.9"
+
+# Station name shown on RDS-capable radios (max 8 characters)
+PS_NAME="PIRADIO"
+
+# Radio text shown on RDS displays
+RT_TEXT="Pi Radio"

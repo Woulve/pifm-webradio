@@ -1,0 +1,12 @@
+[Unit]
+Description=FM Radio Streamer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/fm-radio.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
