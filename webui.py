@@ -185,39 +185,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
 
 def validate_stream_url(url):
-    """Validate stream URL format and accessibility."""
-    errors = []
-
+    """Validate stream URL format."""
     if not url:
-        return False, ["Stream URL is required"]
+        return False, "Stream URL is required"
 
     parsed = urlparse(url)
     if parsed.scheme not in ('http', 'https'):
-        errors.append("URL must start with http:// or https://")
+        return False, "URL must start with http:// or https://"
     if not parsed.netloc:
-        errors.append("Invalid URL format")
+        return False, "Invalid URL format"
 
-    if errors:
-        return False, errors
-
-    try:
-        result = subprocess.run(
-            ["curl", "-s", "--head", "--max-time", "5", "-o", "/dev/null", "-w", "%{http_code}", url],
-            capture_output=True, text=True, timeout=10
-        )
-        http_code = result.stdout.strip()
-        if http_code in ('200', '301', '302', '303', '307', '308'):
-            return True, []
-        elif http_code == '000':
-            errors.append(f"Cannot connect to stream (connection failed)")
-        else:
-            errors.append(f"Stream returned HTTP {http_code} (expected 200 or redirect)")
-    except subprocess.TimeoutExpired:
-        errors.append("Connection timed out (server not responding)")
-    except Exception as e:
-        errors.append(f"Connection test failed: {str(e)}")
-
-    return False, errors
+    return True, None
 
 
 def validate_fm_frequency(freq_str):
@@ -366,9 +344,9 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
 
             validation_errors = []
 
-            url_valid, url_errors = validate_stream_url(stream_url)
+            url_valid, url_error = validate_stream_url(stream_url)
             if not url_valid:
-                validation_errors.extend(url_errors)
+                validation_errors.append(url_error)
 
             freq_valid, freq_error = validate_fm_frequency(fm_freq)
             if not freq_valid:
@@ -390,7 +368,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
                 }
                 try:
                     write_config(config)
-                    message = "Configuration saved successfully (stream URL verified)"
+                    message = "Configuration saved successfully"
                     message_type = "success"
                 except PermissionError:
                     message = f"Permission denied: Cannot write to {CONFIG_PATH}"
