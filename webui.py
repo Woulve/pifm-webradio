@@ -10,10 +10,12 @@ import urllib.parse
 import os
 import re
 import html
+from urllib.parse import urlparse
 
 CONFIG_PATH = "/etc/fm-radio/config"
 SERVICE_NAME = "fm-radio"
 PORT = 8080
+LOG_LINES = 100
 
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html>
@@ -76,6 +78,63 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
         .message.success {{ background: #1e4620; border: 1px solid #2e7d32; }}
         .message.error {{ background: #4a1e1e; border: 1px solid #c62828; }}
+        .logs-section {{
+            margin-top: 20px;
+            background: #16213e;
+            border-radius: 8px;
+            overflow: hidden;
+        }}
+        .logs-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: #1a2744;
+            border-bottom: 1px solid #333;
+        }}
+        .logs-header h3 {{
+            margin: 0;
+            color: #00d4ff;
+            font-size: 16px;
+        }}
+        .btn-refresh {{
+            background: #333;
+            color: #fff;
+            padding: 8px 15px;
+            font-size: 12px;
+        }}
+        .logs-content {{
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }}
+        .logs-content pre {{
+            margin: 0;
+            font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            color: #ccc;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }}
+        .logs-content::-webkit-scrollbar {{
+            width: 8px;
+        }}
+        .logs-content::-webkit-scrollbar-track {{
+            background: #0f0f23;
+        }}
+        .logs-content::-webkit-scrollbar-thumb {{
+            background: #333;
+            border-radius: 4px;
+        }}
+        .no-logs {{
+            color: #666;
+            font-style: italic;
+        }}
+        .validating {{
+            opacity: 0.7;
+            pointer-events: none;
+        }}
     </style>
 </head>
 <body>
@@ -110,9 +169,93 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <button type="submit" name="action" value="restart" class="btn-restart">Restart</button>
         </div>
     </form>
+
+    <div class="logs-section">
+        <div class="logs-header">
+            <h3>Service Logs</h3>
+            <a href="/?refresh_logs=1"><button type="button" class="btn-refresh">Refresh Logs</button></a>
+        </div>
+        <div class="logs-content">
+            <pre>{logs}</pre>
+        </div>
+    </div>
 </body>
 </html>
 """
+
+
+def validate_stream_url(url):
+    """Validate stream URL format and accessibility."""
+    errors = []
+
+    if not url:
+        return False, ["Stream URL is required"]
+
+    parsed = urlparse(url)
+    if parsed.scheme not in ('http', 'https'):
+        errors.append("URL must start with http:// or https://")
+    if not parsed.netloc:
+        errors.append("Invalid URL format")
+
+    if errors:
+        return False, errors
+
+    try:
+        result = subprocess.run(
+            ["curl", "-s", "--head", "--max-time", "5", "-o", "/dev/null", "-w", "%{http_code}", url],
+            capture_output=True, text=True, timeout=10
+        )
+        http_code = result.stdout.strip()
+        if http_code in ('200', '301', '302', '303', '307', '308'):
+            return True, []
+        elif http_code == '000':
+            errors.append(f"Cannot connect to stream (connection failed)")
+        else:
+            errors.append(f"Stream returned HTTP {http_code} (expected 200 or redirect)")
+    except subprocess.TimeoutExpired:
+        errors.append("Connection timed out (server not responding)")
+    except Exception as e:
+        errors.append(f"Connection test failed: {str(e)}")
+
+    return False, errors
+
+
+def validate_fm_frequency(freq_str):
+    """Validate FM frequency is within valid range."""
+    try:
+        freq = float(freq_str)
+        if freq < 87.5 or freq > 108.0:
+            return False, "Frequency must be between 87.5 and 108.0 MHz"
+        return True, None
+    except ValueError:
+        return False, "Frequency must be a valid number"
+
+
+def validate_ps_name(name):
+    """Validate RDS PS name."""
+    if not name:
+        return True, None 
+    if len(name) > 8:
+        return False, "Station name must be 8 characters or less"
+    if not re.match(r'^[A-Za-z0-9 \-_.]+$', name):
+        return False, "Station name can only contain letters, numbers, spaces, and -_."
+    return True, None
+
+
+def get_service_logs(lines=LOG_LINES):
+    """Fetch recent service logs from journalctl."""
+    try:
+        result = subprocess.run(
+            ["journalctl", "-u", SERVICE_NAME, "-n", str(lines), "--no-pager", "-o", "short-iso"],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            return result.stdout or "No logs available"
+        return f"Failed to fetch logs: {result.stderr}"
+    except subprocess.TimeoutExpired:
+        return "Timeout fetching logs"
+    except Exception as e:
+        return f"Error fetching logs: {str(e)}"
 
 
 def get_service_status():
@@ -216,19 +359,45 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         action = params.get('action', [''])[0]
 
         if action == 'save':
-            config = {
-                'stream_url': params.get('stream_url', [''])[0],
-                'fm_freq': params.get('fm_freq', ['107.9'])[0],
-                'ps_name': params.get('ps_name', ['PIRADIO'])[0][:8],
-                'rt_text': params.get('rt_text', ['Pi Radio'])[0]
-            }
-            try:
-                write_config(config)
-                message = "Configuration saved successfully"
-                message_type = "success"
-            except Exception as e:
-                message = f"Failed to save config: {e}"
+            stream_url = params.get('stream_url', [''])[0].strip()
+            fm_freq = params.get('fm_freq', ['107.9'])[0].strip()
+            ps_name = params.get('ps_name', ['PIRADIO'])[0].strip()[:8]
+            rt_text = params.get('rt_text', ['Pi Radio'])[0].strip()
+
+            validation_errors = []
+
+            url_valid, url_errors = validate_stream_url(stream_url)
+            if not url_valid:
+                validation_errors.extend(url_errors)
+
+            freq_valid, freq_error = validate_fm_frequency(fm_freq)
+            if not freq_valid:
+                validation_errors.append(freq_error)
+
+            ps_valid, ps_error = validate_ps_name(ps_name)
+            if not ps_valid:
+                validation_errors.append(ps_error)
+
+            if validation_errors:
+                message = "Validation failed: " + "; ".join(validation_errors)
                 message_type = "error"
+            else:
+                config = {
+                    'stream_url': stream_url,
+                    'fm_freq': fm_freq,
+                    'ps_name': ps_name or 'PIRADIO',
+                    'rt_text': rt_text or 'Pi Radio'
+                }
+                try:
+                    write_config(config)
+                    message = "Configuration saved successfully (stream URL verified)"
+                    message_type = "success"
+                except PermissionError:
+                    message = f"Permission denied: Cannot write to {CONFIG_PATH}"
+                    message_type = "error"
+                except OSError as e:
+                    message = f"Failed to save config: {e}"
+                    message_type = "error"
 
         elif action in ['start', 'stop', 'restart']:
             success, msg = control_service(action)
@@ -240,6 +409,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
     def send_page(self, message="", message_type=""):
         config = read_config()
         status_text, status_class = get_service_status()
+        logs = get_service_logs()
 
         message_html = ""
         if message:
@@ -252,7 +422,8 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             stream_url=html.escape(config['stream_url']),
             fm_freq=html.escape(config['fm_freq']),
             ps_name=html.escape(config['ps_name']),
-            rt_text=html.escape(config['rt_text'])
+            rt_text=html.escape(config['rt_text']),
+            logs=html.escape(logs)
         )
 
         self.send_response(200)
