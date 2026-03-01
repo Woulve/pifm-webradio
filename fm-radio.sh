@@ -61,8 +61,8 @@ stream_audio() {
         curl_opts="$curl_opts --max-time $MAX_TIME"
     fi
 
-    curl $curl_opts "$STREAM_URL" 2>&1 | \
-        sox -t mp3 - -t wav -r 44100 -c 1 - 2>&1 | \
+    curl $curl_opts "$STREAM_URL" 2>/dev/null | \
+        sox -t mp3 - -t wav -r 44100 -c 1 - 2>/dev/null | \
         /usr/local/bin/pi_fm_rds -freq "$FM_FREQ" -ps "$PS_NAME" -rt "$RT_TEXT" -audio -
 
     return $?
