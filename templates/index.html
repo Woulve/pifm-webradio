@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pi FM Radio</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>Pi FM Radio</h1>
+    <p class="subtitle">Web Control Panel</p>
+
+    {message}
+
+    <div class="main-container">
+        <div class="presets-section">
+            <div class="presets-header">
+                <h3>Presets</h3>
+                <button type="button" class="btn-add-preset" onclick="saveAsPreset()">+ Save Current</button>
+            </div>
+            <div class="presets-list" id="presetsList">
+                {presets_html}
+            </div>
+        </div>
+
+        <div class="controls-section">
+            <div class="status {status_class}">
+                <strong>Status:</strong> {status}
+            </div>
+
+            <form method="POST">
+                <label for="stream_url">Stream URL</label>
+                <input type="text" id="stream_url" name="stream_url" value="{stream_url}" placeholder="https://...">
+
+                <label for="fm_freq">FM Frequency (MHz)</label>
+                <input type="text" id="fm_freq" name="fm_freq" value="{fm_freq}" placeholder="107.9">
+                <p class="hint">Range: 87.5 - 108.0</p>
+
+                <label for="ps_name">Station Name (RDS)</label>
+                <input type="text" id="ps_name" name="ps_name" value="{ps_name}" maxlength="8" placeholder="PIRADIO">
+                <p class="hint">Max 8 characters</p>
+
+                <label for="rt_text">Radio Text (RDS)</label>
+                <input type="text" id="rt_text" name="rt_text" value="{rt_text}" placeholder="Pi Radio">
+
+                <div class="buttons">
+                    <button type="submit" name="action" value="save" class="btn-save">Save Config</button>
+                    <button type="submit" name="action" value="start" class="btn-start">Start</button>
+                    <button type="submit" name="action" value="stop" class="btn-stop">Stop</button>
+                    <button type="submit" name="action" value="restart" class="btn-restart">Restart</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="logs-section" id="logsSection">
+            <div class="logs-header">
+                <span class="logs-title"><h3>Service Logs</h3></span>
+                <span class="logs-controls">
+                    <label class="auto-refresh-label">
+                        <input type="checkbox" id="autoRefresh"> Auto-refresh
+                    </label>
+                    <button type="button" class="btn-refresh" onclick="refreshLogs()">Refresh</button>
+                </span>
+            </div>
+            <div class="logs-content" id="logsContent">
+                <pre id="logsText">{logs}</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.presetsData = {presets_json};
+    </script>
+    <script src="/static/app.js"></script>
+</body>
+</html>

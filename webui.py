@@ -10,267 +10,37 @@ import urllib.parse
 import os
 import re
 import html
+import json
 from urllib.parse import urlparse
 
 CONFIG_PATH = "/etc/fm-radio/config"
+PRESETS_PATH = "/etc/fm-radio/presets.json"
 SERVICE_NAME = "fm-radio"
 PORT = 8080
 LOG_LINES = 100
 
-HTML_TEMPLATE = """<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pi FM Radio</title>
-    <style>
-        * {{ box-sizing: border-box; }}
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            max-width: 1100px;
-            margin: 40px auto;
-            padding: 20px;
-            background: #1a1a2e;
-            color: #eee;
-        }}
-        .main-container {{
-            display: flex;
-            gap: 20px;
-            align-items: flex-start;
-        }}
-        .controls-section {{
-            flex: 0 0 500px;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-        }}
-        h1 {{ color: #00d4ff; margin-bottom: 5px; }}
-        .subtitle {{ color: #888; margin-bottom: 30px; }}
-        .status {{
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }}
-        .status.running {{ background: #1e4620; border: 1px solid #2e7d32; }}
-        .status.stopped {{ background: #4a1e1e; border: 1px solid #c62828; }}
-        .status.unknown {{ background: #3d3d00; border: 1px solid #888; }}
-        form {{ background: #16213e; padding: 20px; border-radius: 8px; flex: 1; }}
-        label {{ display: block; margin-bottom: 5px; color: #aaa; font-size: 14px; }}
-        input[type="text"] {{
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #333;
-            border-radius: 4px;
-            background: #0f0f23;
-            color: #fff;
-            font-size: 16px;
-        }}
-        input[type="text"]:focus {{ outline: none; border-color: #00d4ff; }}
-        .hint {{ font-size: 12px; color: #666; margin-top: -10px; margin-bottom: 15px; }}
-        .buttons {{ display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }}
-        button {{
-            padding: 12px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-        }}
-        .btn-save {{ background: #00d4ff; color: #000; }}
-        .btn-start {{ background: #2e7d32; color: #fff; }}
-        .btn-stop {{ background: #c62828; color: #fff; }}
-        .btn-restart {{ background: #f57c00; color: #fff; }}
-        button:hover {{ opacity: 0.9; }}
-        .message {{
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-        }}
-        .message.success {{ background: #1e4620; border: 1px solid #2e7d32; }}
-        .message.error {{ background: #4a1e1e; border: 1px solid #c62828; }}
-        .logs-section {{
-            flex: 1;
-            min-width: 300px;
-            max-height: 500px;
-            background: #16213e;
-            border-radius: 8px;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }}
-        .logs-header {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 20px;
-            background: #1a2744;
-        }}
-        .logs-title h3 {{
-            margin: 0;
-            color: #00d4ff;
-            font-size: 16px;
-        }}
-        .logs-controls {{
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }}
-        .auto-refresh-label {{
-            font-size: 12px;
-            color: #888;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }}
-        .auto-refresh-label input {{
-            cursor: pointer;
-        }}
-        .btn-refresh {{
-            background: #333;
-            color: #fff;
-            padding: 8px 15px;
-            font-size: 12px;
-        }}
-        .logs-content {{
-            padding: 15px;
-            flex: 1;
-            overflow-y: auto;
-        }}
-        .logs-content pre {{
-            margin: 0;
-            font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
-            font-size: 11px;
-            line-height: 1.5;
-            color: #ccc;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }}
-        .logs-content::-webkit-scrollbar {{
-            width: 8px;
-        }}
-        .logs-content::-webkit-scrollbar-track {{
-            background: #0f0f23;
-        }}
-        .logs-content::-webkit-scrollbar-thumb {{
-            background: #333;
-            border-radius: 4px;
-        }}
-        .no-logs {{
-            color: #666;
-            font-style: italic;
-        }}
-        .validating {{
-            opacity: 0.7;
-            pointer-events: none;
-        }}
-        @media (max-width: 900px) {{
-            .main-container {{
-                flex-direction: column;
-            }}
-            .controls-section {{
-                flex: none;
-                width: 100%;
-            }}
-            .logs-section {{
-                width: 100%;
-                max-height: 400px;
-            }}
-        }}
-    </style>
-</head>
-<body>
-    <h1>Pi FM Radio</h1>
-    <p class="subtitle">Web Control Panel</p>
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATES_DIR = os.path.join(SCRIPT_DIR, "templates")
+STATIC_DIR = os.path.join(SCRIPT_DIR, "static")
 
-    {message}
+MIME_TYPES = {
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.html': 'text/html',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+}
 
-    <div class="main-container">
-        <div class="controls-section">
-            <div class="status {status_class}">
-                <strong>Status:</strong> {status}
-            </div>
 
-            <form method="POST">
-                <label for="stream_url">Stream URL</label>
-                <input type="text" id="stream_url" name="stream_url" value="{stream_url}" placeholder="https://...">
-
-                <label for="fm_freq">FM Frequency (MHz)</label>
-                <input type="text" id="fm_freq" name="fm_freq" value="{fm_freq}" placeholder="107.9">
-                <p class="hint">Range: 87.5 - 108.0</p>
-
-                <label for="ps_name">Station Name (RDS)</label>
-                <input type="text" id="ps_name" name="ps_name" value="{ps_name}" maxlength="8" placeholder="PIRADIO">
-                <p class="hint">Max 8 characters</p>
-
-                <label for="rt_text">Radio Text (RDS)</label>
-                <input type="text" id="rt_text" name="rt_text" value="{rt_text}" placeholder="Pi Radio">
-
-                <div class="buttons">
-                    <button type="submit" name="action" value="save" class="btn-save">Save Config</button>
-                    <button type="submit" name="action" value="start" class="btn-start">Start</button>
-                    <button type="submit" name="action" value="stop" class="btn-stop">Stop</button>
-                    <button type="submit" name="action" value="restart" class="btn-restart">Restart</button>
-                </div>
-            </form>
-        </div>
-
-        <div class="logs-section" id="logsSection">
-            <div class="logs-header">
-                <span class="logs-title"><h3>Service Logs</h3></span>
-                <span class="logs-controls">
-                    <label class="auto-refresh-label">
-                        <input type="checkbox" id="autoRefresh"> Auto-refresh
-                    </label>
-                    <button type="button" class="btn-refresh" onclick="refreshLogs()">Refresh</button>
-                </span>
-            </div>
-            <div class="logs-content" id="logsContent">
-                <pre id="logsText">{logs}</pre>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const logsContent = document.getElementById('logsContent');
-        const logsText = document.getElementById('logsText');
-        const autoRefreshCheckbox = document.getElementById('autoRefresh');
-        const logsSection = document.getElementById('logsSection');
-        let refreshInterval = null;
-
-        function scrollLogsToBottom() {{
-            logsContent.scrollTop = logsContent.scrollHeight;
-        }}
-
-        async function refreshLogs() {{
-            try {{
-                const response = await fetch('/logs');
-                if (response.ok) {{
-                    const text = await response.text();
-                    logsText.textContent = text;
-                    scrollLogsToBottom();
-                }}
-            }} catch (e) {{
-                console.error('Failed to refresh logs:', e);
-            }}
-        }}
-
-        autoRefreshCheckbox.addEventListener('change', function() {{
-            if (this.checked) {{
-                refreshLogs();
-                refreshInterval = setInterval(refreshLogs, 3000);
-            }} else {{
-                if (refreshInterval) {{
-                    clearInterval(refreshInterval);
-                    refreshInterval = null;
-                }}
-            }}
-        }});
-        scrollLogsToBottom();
-    </script>
-</body>
-</html>
-"""
+def load_template(name):
+    """Load an HTML template from the templates directory."""
+    template_path = os.path.join(TEMPLATES_DIR, name)
+    with open(template_path, 'r', encoding='utf-8') as f:
+        return f.read()
 
 
 def validate_stream_url(url):
@@ -301,7 +71,7 @@ def validate_fm_frequency(freq_str):
 def validate_ps_name(name):
     """Validate RDS PS name."""
     if not name:
-        return True, None 
+        return True, None
     if len(name) > 8:
         return False, "Station name must be 8 characters or less"
     if not re.match(r'^[A-Za-z0-9 \-_.]+$', name):
@@ -407,6 +177,27 @@ RT_TEXT="{config.get('rt_text', 'Pi Radio')}"
         f.write(content)
 
 
+def read_presets():
+    """Read presets from JSON file."""
+    if not os.path.exists(PRESETS_PATH):
+        return []
+
+    try:
+        with open(PRESETS_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data.get('presets', [])
+    except (json.JSONDecodeError, PermissionError, OSError) as e:
+        print(f"[ERROR] read_presets: {e}")
+        return []
+
+
+def write_presets(presets):
+    """Write presets to JSON file."""
+    data = {'presets': presets}
+    with open(PRESETS_PATH, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2)
+
+
 def control_service(action):
     """Control the fm-radio service."""
     try:
@@ -436,8 +227,74 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/logs':
             self.send_logs()
+        elif self.path == '/presets':
+            self.send_presets()
+        elif self.path.startswith('/static/'):
+            self.send_static_file()
         else:
             self.send_page()
+
+    def send_static_file(self):
+        """Serve static files (CSS, JS, images)."""
+        relative_path = self.path[len('/static/'):]
+        if '..' in relative_path or relative_path.startswith('/'):
+            self.send_error(403, "Forbidden")
+            return
+
+        file_path = os.path.join(STATIC_DIR, relative_path)
+
+        if not os.path.exists(file_path) or not os.path.isfile(file_path):
+            self.send_error(404, "File not found")
+            return
+
+        _, ext = os.path.splitext(file_path)
+        content_type = MIME_TYPES.get(ext.lower(), 'application/octet-stream')
+
+        try:
+            with open(file_path, 'rb') as f:
+                content = f.read()
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Content-Length', str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+        except (PermissionError, OSError) as e:
+            self.send_error(500, f"Error reading file: {e}")
+
+    def send_presets(self):
+        presets = read_presets()
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.end_headers()
+        self.wfile.write(json.dumps(presets).encode('utf-8'))
+
+    def handle_add_preset(self):
+        try:
+            content_length = int(self.headers.get('Content-Length', '0'))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            preset = json.loads(post_data)
+
+            if not preset.get('name') or not preset.get('url'):
+                self.send_error(400, "Name and URL are required")
+                return
+
+            presets = read_presets()
+            presets.append({
+                'name': preset['name'][:50],
+                'url': preset['url'],
+                'ps_name': preset.get('ps_name', '')[:8],
+                'rt_text': preset.get('rt_text', '')
+            })
+            write_presets(presets)
+
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(b'{"success": true}')
+        except (json.JSONDecodeError, ValueError) as e:
+            self.send_error(400, f"Invalid request: {e}")
+        except (PermissionError, OSError) as e:
+            self.send_error(500, f"Failed to save preset: {e}")
 
     def send_logs(self):
         logs = get_service_logs()
@@ -446,7 +303,30 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(logs.encode('utf-8'))
 
+    def do_DELETE(self):
+        if self.path.startswith('/presets/'):
+            try:
+                index = int(self.path.split('/')[-1])
+                presets = read_presets()
+                if 0 <= index < len(presets):
+                    presets.pop(index)
+                    write_presets(presets)
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(b'{"success": true}')
+                else:
+                    self.send_error(404, "Preset not found")
+            except (ValueError, PermissionError, OSError) as e:
+                self.send_error(500, str(e))
+        else:
+            self.send_error(404, "Not found")
+
     def do_POST(self):
+        if self.path == '/presets':
+            self.handle_add_preset()
+            return
+
         try:
             content_length_str = self.headers.get('Content-Length', '0')
             content_length = int(content_length_str)
@@ -526,12 +406,30 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         config = read_config()
         status_text, status_class = get_service_status()
         logs = get_service_logs()
+        presets = read_presets()
 
         message_html = ""
         if message:
             message_html = f'<div class="message {message_type}">{html.escape(message)}</div>'
 
-        page = HTML_TEMPLATE.format(
+        if presets:
+            presets_html = ""
+            for i, preset in enumerate(presets):
+                escaped_name = html.escape(preset.get('name', 'Unnamed'))
+                presets_html += f'''<div class="preset-item" onclick="loadPreset({i})">
+                    <span class="preset-name" title="{escaped_name}">{escaped_name}</span>
+                    <button class="preset-delete" onclick="deletePreset({i}, event)">&times;</button>
+                </div>'''
+        else:
+            presets_html = '<div class="no-presets">No presets saved</div>'
+
+        try:
+            template = load_template('index.html')
+        except (FileNotFoundError, PermissionError, OSError) as e:
+            self.send_error(500, f"Failed to load template: {e}")
+            return
+
+        page = template.format(
             message=message_html,
             status=status_text,
             status_class=status_class,
@@ -539,7 +437,9 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             fm_freq=html.escape(config['fm_freq']),
             ps_name=html.escape(config['ps_name']),
             rt_text=html.escape(config['rt_text']),
-            logs=html.escape(logs)
+            logs=html.escape(logs),
+            presets_html=presets_html,
+            presets_json=json.dumps(presets)
         )
 
         self.send_response(200)
