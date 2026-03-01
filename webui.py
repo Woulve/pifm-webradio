@@ -22,28 +22,28 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pi FM Radio</title>
     <style>
-        * { box-sizing: border-box; }
-        body {
+        * {{ box-sizing: border-box; }}
+        body {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             max-width: 500px;
             margin: 40px auto;
             padding: 20px;
             background: #1a1a2e;
             color: #eee;
-        }
-        h1 { color: #00d4ff; margin-bottom: 5px; }
-        .subtitle { color: #888; margin-bottom: 30px; }
-        .status {
+        }}
+        h1 {{ color: #00d4ff; margin-bottom: 5px; }}
+        .subtitle {{ color: #888; margin-bottom: 30px; }}
+        .status {{
             padding: 15px;
             border-radius: 8px;
             margin-bottom: 20px;
-        }
-        .status.running { background: #1e4620; border: 1px solid #2e7d32; }
-        .status.stopped { background: #4a1e1e; border: 1px solid #c62828; }
-        .status.unknown { background: #3d3d00; border: 1px solid #888; }
-        form { background: #16213e; padding: 20px; border-radius: 8px; }
-        label { display: block; margin-bottom: 5px; color: #aaa; font-size: 14px; }
-        input[type="text"] {
+        }}
+        .status.running {{ background: #1e4620; border: 1px solid #2e7d32; }}
+        .status.stopped {{ background: #4a1e1e; border: 1px solid #c62828; }}
+        .status.unknown {{ background: #3d3d00; border: 1px solid #888; }}
+        form {{ background: #16213e; padding: 20px; border-radius: 8px; }}
+        label {{ display: block; margin-bottom: 5px; color: #aaa; font-size: 14px; }}
+        input[type="text"] {{
             width: 100%;
             padding: 10px;
             margin-bottom: 15px;
@@ -52,30 +52,30 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             background: #0f0f23;
             color: #fff;
             font-size: 16px;
-        }
-        input[type="text"]:focus { outline: none; border-color: #00d4ff; }
-        .hint { font-size: 12px; color: #666; margin-top: -10px; margin-bottom: 15px; }
-        .buttons { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
-        button {
+        }}
+        input[type="text"]:focus {{ outline: none; border-color: #00d4ff; }}
+        .hint {{ font-size: 12px; color: #666; margin-top: -10px; margin-bottom: 15px; }}
+        .buttons {{ display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }}
+        button {{
             padding: 12px 20px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             font-size: 14px;
             font-weight: 500;
-        }
-        .btn-save { background: #00d4ff; color: #000; }
-        .btn-start { background: #2e7d32; color: #fff; }
-        .btn-stop { background: #c62828; color: #fff; }
-        .btn-restart { background: #f57c00; color: #fff; }
-        button:hover { opacity: 0.9; }
-        .message {
+        }}
+        .btn-save {{ background: #00d4ff; color: #000; }}
+        .btn-start {{ background: #2e7d32; color: #fff; }}
+        .btn-stop {{ background: #c62828; color: #fff; }}
+        .btn-restart {{ background: #f57c00; color: #fff; }}
+        button:hover {{ opacity: 0.9; }}
+        .message {{
             padding: 10px;
             border-radius: 4px;
             margin-bottom: 20px;
-        }
-        .message.success { background: #1e4620; border: 1px solid #2e7d32; }
-        .message.error { background: #4a1e1e; border: 1px solid #c62828; }
+        }}
+        .message.success {{ background: #1e4620; border: 1px solid #2e7d32; }}
+        .message.error {{ background: #4a1e1e; border: 1px solid #c62828; }}
     </style>
 </head>
 <body>
