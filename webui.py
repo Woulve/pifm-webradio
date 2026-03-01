@@ -27,11 +27,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         * {{ box-sizing: border-box; }}
         body {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            max-width: 500px;
+            max-width: 1100px;
             margin: 40px auto;
             padding: 20px;
             background: #1a1a2e;
             color: #eee;
+        }}
+        .main-container {{
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }}
+        .controls-section {{
+            flex: 0 0 500px;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
         }}
         h1 {{ color: #00d4ff; margin-bottom: 5px; }}
         .subtitle {{ color: #888; margin-bottom: 30px; }}
@@ -43,7 +54,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .status.running {{ background: #1e4620; border: 1px solid #2e7d32; }}
         .status.stopped {{ background: #4a1e1e; border: 1px solid #c62828; }}
         .status.unknown {{ background: #3d3d00; border: 1px solid #888; }}
-        form {{ background: #16213e; padding: 20px; border-radius: 8px; }}
+        form {{ background: #16213e; padding: 20px; border-radius: 8px; flex: 1; }}
         label {{ display: block; margin-bottom: 5px; color: #aaa; font-size: 14px; }}
         input[type="text"] {{
             width: 100%;
@@ -79,10 +90,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .message.success {{ background: #1e4620; border: 1px solid #2e7d32; }}
         .message.error {{ background: #4a1e1e; border: 1px solid #c62828; }}
         .logs-section {{
-            margin-top: 20px;
+            flex: 1;
+            min-width: 300px;
+            max-height: 500px;
             background: #16213e;
             border-radius: 8px;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }}
         .logs-header {{
             display: flex;
@@ -90,12 +105,26 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             align-items: center;
             padding: 15px 20px;
             background: #1a2744;
-            border-bottom: 1px solid #333;
         }}
-        .logs-header h3 {{
+        .logs-title h3 {{
             margin: 0;
             color: #00d4ff;
             font-size: 16px;
+        }}
+        .logs-controls {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }}
+        .auto-refresh-label {{
+            font-size: 12px;
+            color: #888;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }}
+        .auto-refresh-label input {{
+            cursor: pointer;
         }}
         .btn-refresh {{
             background: #333;
@@ -105,7 +134,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
         .logs-content {{
             padding: 15px;
-            max-height: 400px;
+            flex: 1;
             overflow-y: auto;
         }}
         .logs-content pre {{
@@ -135,6 +164,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             opacity: 0.7;
             pointer-events: none;
         }}
+        @media (max-width: 900px) {{
+            .main-container {{
+                flex-direction: column;
+            }}
+            .controls-section {{
+                flex: none;
+                width: 100%;
+            }}
+            .logs-section {{
+                width: 100%;
+                max-height: 400px;
+            }}
+        }}
     </style>
 </head>
 <body>
@@ -143,42 +185,89 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     {message}
 
-    <div class="status {status_class}">
-        <strong>Status:</strong> {status}
+    <div class="main-container">
+        <div class="controls-section">
+            <div class="status {status_class}">
+                <strong>Status:</strong> {status}
+            </div>
+
+            <form method="POST">
+                <label for="stream_url">Stream URL</label>
+                <input type="text" id="stream_url" name="stream_url" value="{stream_url}" placeholder="https://...">
+
+                <label for="fm_freq">FM Frequency (MHz)</label>
+                <input type="text" id="fm_freq" name="fm_freq" value="{fm_freq}" placeholder="107.9">
+                <p class="hint">Range: 87.5 - 108.0</p>
+
+                <label for="ps_name">Station Name (RDS)</label>
+                <input type="text" id="ps_name" name="ps_name" value="{ps_name}" maxlength="8" placeholder="PIRADIO">
+                <p class="hint">Max 8 characters</p>
+
+                <label for="rt_text">Radio Text (RDS)</label>
+                <input type="text" id="rt_text" name="rt_text" value="{rt_text}" placeholder="Pi Radio">
+
+                <div class="buttons">
+                    <button type="submit" name="action" value="save" class="btn-save">Save Config</button>
+                    <button type="submit" name="action" value="start" class="btn-start">Start</button>
+                    <button type="submit" name="action" value="stop" class="btn-stop">Stop</button>
+                    <button type="submit" name="action" value="restart" class="btn-restart">Restart</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="logs-section" id="logsSection">
+            <div class="logs-header">
+                <span class="logs-title"><h3>Service Logs</h3></span>
+                <span class="logs-controls">
+                    <label class="auto-refresh-label">
+                        <input type="checkbox" id="autoRefresh"> Auto-refresh
+                    </label>
+                    <button type="button" class="btn-refresh" onclick="refreshLogs()">Refresh</button>
+                </span>
+            </div>
+            <div class="logs-content" id="logsContent">
+                <pre id="logsText">{logs}</pre>
+            </div>
+        </div>
     </div>
 
-    <form method="POST">
-        <label for="stream_url">Stream URL</label>
-        <input type="text" id="stream_url" name="stream_url" value="{stream_url}" placeholder="https://...">
+    <script>
+        const logsContent = document.getElementById('logsContent');
+        const logsText = document.getElementById('logsText');
+        const autoRefreshCheckbox = document.getElementById('autoRefresh');
+        const logsSection = document.getElementById('logsSection');
+        let refreshInterval = null;
 
-        <label for="fm_freq">FM Frequency (MHz)</label>
-        <input type="text" id="fm_freq" name="fm_freq" value="{fm_freq}" placeholder="107.9">
-        <p class="hint">Range: 87.5 - 108.0</p>
+        function scrollLogsToBottom() {{
+            logsContent.scrollTop = logsContent.scrollHeight;
+        }}
 
-        <label for="ps_name">Station Name (RDS)</label>
-        <input type="text" id="ps_name" name="ps_name" value="{ps_name}" maxlength="8" placeholder="PIRADIO">
-        <p class="hint">Max 8 characters</p>
+        async function refreshLogs() {{
+            try {{
+                const response = await fetch('/logs');
+                if (response.ok) {{
+                    const text = await response.text();
+                    logsText.textContent = text;
+                    scrollLogsToBottom();
+                }}
+            }} catch (e) {{
+                console.error('Failed to refresh logs:', e);
+            }}
+        }}
 
-        <label for="rt_text">Radio Text (RDS)</label>
-        <input type="text" id="rt_text" name="rt_text" value="{rt_text}" placeholder="Pi Radio">
-
-        <div class="buttons">
-            <button type="submit" name="action" value="save" class="btn-save">Save Config</button>
-            <button type="submit" name="action" value="start" class="btn-start">Start</button>
-            <button type="submit" name="action" value="stop" class="btn-stop">Stop</button>
-            <button type="submit" name="action" value="restart" class="btn-restart">Restart</button>
-        </div>
-    </form>
-
-    <div class="logs-section">
-        <div class="logs-header">
-            <h3>Service Logs</h3>
-            <a href="/?refresh_logs=1"><button type="button" class="btn-refresh">Refresh Logs</button></a>
-        </div>
-        <div class="logs-content">
-            <pre>{logs}</pre>
-        </div>
-    </div>
+        autoRefreshCheckbox.addEventListener('change', function() {{
+            if (this.checked) {{
+                refreshLogs();
+                refreshInterval = setInterval(refreshLogs, 3000);
+            }} else {{
+                if (refreshInterval) {{
+                    clearInterval(refreshInterval);
+                    refreshInterval = null;
+                }}
+            }}
+        }});
+        scrollLogsToBottom();
+    </script>
 </body>
 </html>
 """
@@ -241,7 +330,7 @@ def get_service_status():
     try:
         result = subprocess.run(
             ["systemctl", "is-active", SERVICE_NAME],
-            capture_output=True, text=True
+            capture_output=True, text=True, timeout=10
         )
         status = result.stdout.strip()
         if status == "active":
@@ -250,7 +339,12 @@ def get_service_status():
             return "Stopped", "stopped"
         else:
             return status.capitalize(), "unknown"
-    except Exception:
+    except subprocess.TimeoutExpired:
+        return "Timeout", "unknown"
+    except OSError as e:
+        return f"Error: {e}", "unknown"
+    except Exception as e:
+        print(f"[ERROR] get_service_status: {e}")
         return "Unknown", "unknown"
 
 
@@ -267,7 +361,7 @@ def read_config():
         return config
 
     try:
-        with open(CONFIG_PATH, 'r') as f:
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
             content = f.read()
 
         patterns = {
@@ -281,8 +375,14 @@ def read_config():
             match = re.search(pattern, content)
             if match:
                 config[key] = match.group(1)
-    except Exception:
-        pass
+    except PermissionError as e:
+        print(f"[ERROR] read_config: Permission denied reading {CONFIG_PATH}: {e}")
+    except OSError as e:
+        print(f"[ERROR] read_config: OS error reading {CONFIG_PATH}: {e}")
+    except UnicodeDecodeError as e:
+        print(f"[ERROR] read_config: Invalid encoding in {CONFIG_PATH}: {e}")
+    except Exception as e:
+        print(f"[ERROR] read_config: Unexpected error: {e}")
 
     return config
 
@@ -312,11 +412,21 @@ def control_service(action):
     try:
         subprocess.run(
             ["systemctl", action, SERVICE_NAME],
-            check=True, capture_output=True
+            check=True, capture_output=True, timeout=30
         )
         return True, f"Service {action}ed successfully"
     except subprocess.CalledProcessError as e:
-        return False, f"Failed to {action} service: {e.stderr.decode() if e.stderr else 'unknown error'}"
+        stderr_msg = ""
+        if e.stderr:
+            try:
+                stderr_msg = e.stderr.decode('utf-8', errors='replace')
+            except Exception:
+                stderr_msg = "unknown error"
+        return False, f"Failed to {action} service: {stderr_msg or 'unknown error'}"
+    except subprocess.TimeoutExpired:
+        return False, f"Timeout while trying to {action} service"
+    except OSError as e:
+        return False, f"System error: {e}"
 
 
 class RequestHandler(http.server.BaseHTTPRequestHandler):
@@ -324,11 +434,39 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         print(f"[{self.address_string()}] {args[0]}")
 
     def do_GET(self):
-        self.send_page()
+        if self.path == '/logs':
+            self.send_logs()
+        else:
+            self.send_page()
+
+    def send_logs(self):
+        logs = get_service_logs()
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/plain; charset=utf-8')
+        self.end_headers()
+        self.wfile.write(logs.encode('utf-8'))
 
     def do_POST(self):
-        content_length = int(self.headers.get('Content-Length', 0))
-        post_data = self.rfile.read(content_length).decode('utf-8')
+        try:
+            content_length_str = self.headers.get('Content-Length', '0')
+            content_length = int(content_length_str)
+        except (ValueError, TypeError):
+            self.send_error(400, "Invalid Content-Length header")
+            return
+
+        if content_length > 1024 * 1024:  # 1MB limit
+            self.send_error(413, "Request body too large")
+            return
+
+        try:
+            post_data = self.rfile.read(content_length).decode('utf-8')
+        except UnicodeDecodeError:
+            self.send_error(400, "Invalid UTF-8 in request body")
+            return
+        except Exception as e:
+            self.send_error(500, f"Error reading request: {e}")
+            return
+
         params = urllib.parse.parse_qs(post_data)
 
         message = ""
