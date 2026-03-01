@@ -75,8 +75,10 @@ if systemctl is-active --quiet fm-radio-webui 2>/dev/null; then
     WEBUI_WAS_RUNNING=true
     systemctl stop fm-radio-webui
 fi
-cp "$SCRIPT_DIR/webui.py" /usr/local/bin/fm-radio-webui.py
-chmod +x /usr/local/bin/fm-radio-webui.py
+mkdir -p /opt/fm-radio
+cp "$SCRIPT_DIR/webui.py" /opt/fm-radio/
+cp -r "$SCRIPT_DIR/templates" /opt/fm-radio/
+cp -r "$SCRIPT_DIR/static" /opt/fm-radio/
 cp "$SCRIPT_DIR/fm-radio-webui.service" /etc/systemd/system/
 systemctl daemon-reload
 if [ "$WEBUI_WAS_RUNNING" = true ] || [ "$ENABLE_WEBUI" = true ]; then

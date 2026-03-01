@@ -4,7 +4,8 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/bin/python3 /usr/local/bin/fm-radio-webui.py
+ExecStart=/usr/bin/python3 /opt/fm-radio/webui.py
+WorkingDirectory=/opt/fm-radio
 Restart=always
 RestartSec=5
 

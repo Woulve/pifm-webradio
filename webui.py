@@ -19,7 +19,7 @@ SERVICE_NAME = "fm-radio"
 PORT = 8080
 LOG_LINES = 100
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 TEMPLATES_DIR = os.path.join(SCRIPT_DIR, "templates")
 STATIC_DIR = os.path.join(SCRIPT_DIR, "static")
 
